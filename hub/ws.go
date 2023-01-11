@@ -3,6 +3,7 @@ package hub
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/cmfunc/jipengWS/protocol"
 )
@@ -36,23 +37,30 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
-			h.clients[client.remoteAddr] = client
+			h.clients[client.clientid] = client
 		case client := <-h.unregister:
-			if _, ok := h.clients[client.remoteAddr]; ok {
-				delete(h.clients, client.remoteAddr)
+			if _, ok := h.clients[client.clientid]; ok {
+				delete(h.clients, client.clientid)
 				close(client.send)
 			}
 		case message := <-h.broadcast:
 			// 这里的逻辑，是将消息分发给了所有的客户端
 			// 这里应该是发送给指定的user_id对应的连接，不是遍历
-			fmt.Println(string(message))
+			fmt.Println("message", string(message))
 			cliMsg := protocol.MessageBase{}
 			err := json.Unmarshal(message, &cliMsg)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			if client, ok := h.clients[cliMsg.RmtAddr]; ok {
+			fmt.Println(h.clients)
+			if client, ok := h.clients[cliMsg.UserID]; ok {
+				go func() {
+					for i := 0; i < 50; i++ {
+						time.Sleep(9 * time.Second)
+						client.send <- message
+					}
+				}()
 				client.send <- message
 			}
 		}

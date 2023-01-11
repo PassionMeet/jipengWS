@@ -32,8 +32,8 @@ var (
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
-		fmt.Println(origin)
-		return origin == "http://wstool.js.org"
+		fmt.Println("origin", origin)
+		return true
 	},
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -50,7 +50,7 @@ type Client struct {
 	send chan []byte
 
 	// Remote Addr
-	remoteAddr string
+	clientid string
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -107,6 +107,7 @@ func (c *Client) writePump() {
 			w.Write(message)
 
 			// Add queued chat messages to the current websocket message.
+			// 这里会将当前chan中缓冲区数据全部刷入，一次性返回给client
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
@@ -132,8 +133,10 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	fmt.Println(conn.RemoteAddr().String())
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), remoteAddr: conn.RemoteAddr().String()}
+
+	userID := r.URL.Query().Get("user_id")
+	// TODO 缓冲区的长度问题
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), clientid: userID}
 	client.hub.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
